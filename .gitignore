@@ -11,3 +11,5 @@ MM Manuscripts/
 ~$*.docx
 tsconfig.tsbuildinfo
 my-money-maker@0.
+
+/generated/prisma
