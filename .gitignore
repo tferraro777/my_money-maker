@@ -13,3 +13,7 @@ tsconfig.tsbuildinfo
 my-money-maker@0.
 
 /generated/prisma
+
+# env files
+.env
+.env.*
