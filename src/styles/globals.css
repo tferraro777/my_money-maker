@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply antialiased;
+  background: #f7f4f1;
+  color: #333333;
+}
+
+.card {
+  @apply rounded-2xl bg-white p-4 shadow-sm;
+  border: 1px solid #CBC4BC;
+}
+
+.input {
+  @apply w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:ring-2;
+  border: 1px solid #CBC4BC;
+  --tw-ring-color: #522D80;
+}
+
+.btn {
+  @apply rounded-xl px-4 py-2 text-sm font-semibold text-white;
+  background: #F56600;
+}
+
+.btn:hover {
+  background: #d95a00;
+}
+
+.text-clemson-orange {
+  color: #F56600;
+}
+
+.text-clemson-purple {
+  color: #522D80;
+}

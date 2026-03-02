@@ -1,0 +1,10 @@
+{
+  "name": "My Money Maker",
+  "short_name": "MoneyMaker",
+  "description": "AI business-building assistant for social sellers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#178261",
+  "icons": []
+}
