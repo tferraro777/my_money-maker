@@ -235,6 +235,24 @@ CREATE TABLE IF NOT EXISTS ai_calls (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  checksum_sha256 TEXT
+);
+
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stripe_event_id TEXT NOT NULL UNIQUE,
+  event_type TEXT NOT NULL,
+  livemode BOOLEAN NOT NULL DEFAULT FALSE,
+  payload JSONB NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processing_status TEXT NOT NULL DEFAULT 'processed' CHECK (processing_status IN ('processed', 'ignored', 'failed')),
+  error_message TEXT
+);
+
 CREATE TABLE IF NOT EXISTS helpfulness_votes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -352,6 +370,8 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_scope_user_company ON knowle
 CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_vector ON knowledge_embeddings USING ivfflat (embedding vector_cosine_ops);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_embeddings_file_unique ON knowledge_embeddings(file_id) WHERE file_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_status_next_attempt ON ingestion_jobs(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_schema_migrations_applied_at ON schema_migrations(applied_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_type_processed ON stripe_webhook_events(event_type, processed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_abuse_flags_user_created ON abuse_flags(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
 
