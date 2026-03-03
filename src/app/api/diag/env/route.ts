@@ -11,6 +11,8 @@ export async function GET() {
   return NextResponse.json({
     hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
     hasAuthSecret: Boolean(process.env.AUTH_SECRET),
+    hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
+    hasEmailFrom: Boolean(process.env.EMAIL_FROM),
     databaseUrlPrefix: safe,
     nodeEnv: process.env.NODE_ENV,
   });
