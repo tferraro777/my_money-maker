@@ -1,7 +1,10 @@
 import { headers } from 'next/headers';
 import { getSessionUserId } from '@/lib/session';
+import { assertNoDevUserIdInProduction } from '@/lib/env';
 
 export async function getOptionalUserId(): Promise<string | null> {
+  assertNoDevUserIdInProduction();
+
   const sessionUserId = await getSessionUserId();
   if (sessionUserId) return sessionUserId;
 

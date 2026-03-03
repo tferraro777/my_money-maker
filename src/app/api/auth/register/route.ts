@@ -11,6 +11,7 @@ import {
 } from '@/lib/email-verification';
 import { sendEmail } from '@/lib/email-sender';
 import { verificationEmailTemplate } from '@/lib/email-templates';
+import { requireBaseUrl } from '@/lib/env';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
       [user.id, verifyTokenHash, verifyExpiry.toISOString()]
     );
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = requireBaseUrl();
     const verifyUrl = `${baseUrl}/auth/verify?token=${encodeURIComponent(verifyToken)}`;
 
     const token = await createSessionToken(user.id, user.email);

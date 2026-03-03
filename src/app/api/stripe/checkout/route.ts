@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/auth';
 import { getOrCreateStripeCustomer, stripe, stripeUrls } from '@/lib/stripe';
+import { requireStripePriceId } from '@/lib/env';
 
 export async function POST() {
   try {
     const userId = await requireUserId();
 
-    if (!process.env.STRIPE_PRICE_ID_MONTHLY) {
-      return NextResponse.json({ ok: false, error: 'Missing STRIPE_PRICE_ID_MONTHLY config.' }, { status: 500 });
-    }
+    const priceId = requireStripePriceId();
 
     const customerId = await getOrCreateStripeCustomer(userId);
     const urls = stripeUrls();
@@ -16,7 +15,7 @@ export async function POST() {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID_MONTHLY, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: urls.successUrl,
       cancel_url: urls.cancelUrl,
       subscription_data: {

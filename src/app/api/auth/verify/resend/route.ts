@@ -9,6 +9,7 @@ import {
 } from '@/lib/email-verification';
 import { sendEmail } from '@/lib/email-sender';
 import { verificationEmailTemplate } from '@/lib/email-templates';
+import { requireBaseUrl } from '@/lib/env';
 
 export async function POST() {
   try {
@@ -41,7 +42,7 @@ export async function POST() {
       [userId, tokenHash, expiresAt.toISOString()]
     );
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = requireBaseUrl();
     const verifyUrl = `${baseUrl}/auth/verify?token=${token}`;
 
     const template = verificationEmailTemplate(verifyUrl);

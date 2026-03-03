@@ -1,10 +1,11 @@
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { requireBaseUrl, requireStripeKey } from '@/lib/env';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+export const stripe = new Stripe(requireStripeKey());
 
 function baseUrl(): string {
-  return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  return requireBaseUrl();
 }
 
 export function stripeUrls() {

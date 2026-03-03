@@ -1,11 +1,12 @@
 import { Pool, PoolClient } from 'pg';
+import { requireDatabaseUrl } from '@/lib/env';
 
 const globalForPg = globalThis as unknown as { pool?: Pool };
 
 export const db =
   globalForPg.pool ??
   new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: requireDatabaseUrl(),
     max: 20,
     idleTimeoutMillis: 30_000
   });

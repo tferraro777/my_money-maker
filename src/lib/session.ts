@@ -1,14 +1,12 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { requireAuthSecret } from '@/lib/env';
 
 const COOKIE_NAME = 'mmm_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 function secretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error('AUTH_SECRET must be set and at least 32 characters.');
-  }
+  const secret = requireAuthSecret();
   return new TextEncoder().encode(secret);
 }
 

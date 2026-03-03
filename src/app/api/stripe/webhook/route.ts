@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { requireStripeKey, requireStripeWebhookSecret } from '@/lib/env';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+const stripe = new Stripe(requireStripeKey());
 
 export async function POST(req: Request) {
   try {
     const signature = req.headers.get('stripe-signature');
-    if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
+    if (!signature) {
       return NextResponse.json({ ok: false, error: 'Missing webhook signature config' }, { status: 400 });
     }
 
     const rawBody = await req.text();
-    const event = stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET);
+    const event = stripe.webhooks.constructEvent(rawBody, signature, requireStripeWebhookSecret());
 
     if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;

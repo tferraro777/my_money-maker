@@ -3,13 +3,14 @@ import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { db, withTransaction } from '@/lib/db';
 import { downloadObject } from '@/lib/r2';
+import { requireOpenAiKey } from '@/lib/env';
 
 // pdf-parse has no bundled TS types in this project.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: requireOpenAiKey() });
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const SUMMARIZE_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
 

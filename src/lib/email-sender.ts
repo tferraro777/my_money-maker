@@ -1,3 +1,5 @@
+import { requireEmailConfig } from '@/lib/env';
+
 export type SendEmailInput = {
   to: string;
   subject: string;
@@ -6,8 +8,12 @@ export type SendEmailInput = {
 };
 
 function requireConfig() {
-  const from = process.env.EMAIL_FROM;
-  const apiKey = process.env.EMAIL_PROVIDER_API_KEY;
+  if (process.env.NODE_ENV === 'production') {
+    return requireEmailConfig();
+  }
+
+  const from = process.env.EMAIL_FROM?.trim();
+  const apiKey = process.env.EMAIL_PROVIDER_API_KEY?.trim();
 
   if (!from || !apiKey) {
     return null;

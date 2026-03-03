@@ -2,14 +2,12 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { processIngestionJob } from '@/lib/ingestion';
+import { requireIngestionSecret } from '@/lib/env';
 
 export const runtime = 'nodejs';
 
 function authorized(req: Request): boolean {
-  const secret = process.env.INGESTION_CRON_SECRET;
-  if (!secret) {
-    throw new Error('Missing required env var: INGESTION_CRON_SECRET');
-  }
+  const secret = requireIngestionSecret();
 
   const auth = req.headers.get('authorization') || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { db } from '@/lib/db';
 import { ChatMode, MODE_SYSTEM_HINTS } from '@/lib/modes';
+import { requireOpenAiKey } from '@/lib/env';
 
 const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
 
@@ -15,7 +16,7 @@ Rules:
 6) Keep answers clear, actionable, and encouraging.
 7) End every response with one relevant next-step question offering concrete help (for example: draft script, build list, write post, create plan).`;
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({ apiKey: requireOpenAiKey() });
 
 function quoteBlockFilter(text: string): string {
   return text

@@ -9,6 +9,7 @@ import {
 } from '@/lib/password-reset';
 import { sendEmail } from '@/lib/email-sender';
 import { passwordResetEmailTemplate } from '@/lib/email-templates';
+import { requireBaseUrl } from '@/lib/env';
 
 const requestSchema = z.object({
   email: z.string().email()
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
           [user.id, tokenHash, expiresAt.toISOString()]
         );
 
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const baseUrl = requireBaseUrl();
         const resetUrl = `${baseUrl}/auth/reset?token=${token}`;
 
         const template = passwordResetEmailTemplate(resetUrl);
