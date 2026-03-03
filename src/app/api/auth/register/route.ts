@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     );
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const verifyUrl = `${baseUrl}/auth/verify?token=${verifyToken}`;
+    const verifyUrl = `${baseUrl}/auth/verify?token=${encodeURIComponent(verifyToken)}`;
 
     const token = await createSessionToken(user.id, user.email);
     await setSessionCookie(token);
