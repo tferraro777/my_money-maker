@@ -15,6 +15,8 @@ export async function POST() {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
+      client_reference_id: userId,
+      metadata: { user_id: userId },
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: urls.successUrl,
       cancel_url: urls.cancelUrl,
@@ -24,6 +26,10 @@ export async function POST() {
         }
       }
     });
+
+    if (!session.url) {
+      throw new Error('Stripe checkout session URL was not returned.');
+    }
 
     return NextResponse.json({ ok: true, url: session.url });
   } catch (error) {
