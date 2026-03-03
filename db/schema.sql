@@ -181,6 +181,22 @@ CREATE TABLE IF NOT EXISTS knowledge_embeddings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'retryable')),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts > 0),
+  last_error TEXT,
+  locked_at TIMESTAMPTZ,
+  locked_by TEXT,
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(file_id)
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -334,6 +350,8 @@ CREATE INDEX IF NOT EXISTS idx_income_entries_user_time ON income_entries(user_i
 CREATE INDEX IF NOT EXISTS idx_activity_entries_user_time ON activity_entries(user_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_scope_user_company ON knowledge_embeddings(scope, user_id, company_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_embeddings_vector ON knowledge_embeddings USING ivfflat (embedding vector_cosine_ops);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_embeddings_file_unique ON knowledge_embeddings(file_id) WHERE file_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_status_next_attempt ON ingestion_jobs(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_abuse_flags_user_created ON abuse_flags(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
 
@@ -392,5 +410,10 @@ END $$;
 
 DO $$ BEGIN
   CREATE TRIGGER appointments_updated_at BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TRIGGER ingestion_jobs_updated_at BEFORE UPDATE ON ingestion_jobs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
