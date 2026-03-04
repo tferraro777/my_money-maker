@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { requireStripeKey, requireStripeWebhookSecret } from '@/lib/env';
+import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -116,8 +117,12 @@ export async function POST(req: Request) {
     }
 
     const buf = Buffer.from(await req.arrayBuffer()); // raw bytes, unmodified
+
     const event = stripe.webhooks.constructEvent(buf, signature, requireStripeWebhookSecret());
-    
+    const secret = requireStripeWebhookSecret();
+    console.log('[stripe:webhook] secret_sha256', crypto.createHash('sha256').update(secret).digest('hex'));
+    console.log('[stripe:webhook] sig_prefix', signature.slice(0, 20));
+    const event = stripe.webhooks.constructEvent(buf, signature, secret);    
     eventIdForFailureLog = event.id;
 
     const inserted = await db.query(
