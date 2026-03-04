@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { requireStripeKey, requireStripeWebhookSecret } from '@/lib/env';
 
+export const runtime = 'nodejs';
+
 const stripe = new Stripe(requireStripeKey());
 
 type AppSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'incomplete';
@@ -113,8 +115,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Missing webhook signature config' }, { status: 400 });
     }
 
-    const rawBody = await req.text();
-    const event = stripe.webhooks.constructEvent(rawBody, signature, requireStripeWebhookSecret());
+    const buf = Buffer.from(await req.arrayBuffer()); // raw bytes, unmodified
+    const event = stripe.webhooks.constructEvent(buf, signature, requireStripeWebhookSecret());
+    
     eventIdForFailureLog = event.id;
 
     const inserted = await db.query(
