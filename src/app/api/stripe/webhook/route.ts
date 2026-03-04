@@ -126,7 +126,7 @@ export async function POST(req: Request) {
        ) VALUES ($1, $2, $3, $4::jsonb, 'processed')
        ON CONFLICT (stripe_event_id) DO NOTHING
        RETURNING id`,
-      [event.id, event.type, event.livemode, rawBody]
+      [event.id, event.type, event.livemode, buf.toString('utf8')]
     );
 
     if ((inserted.rowCount ?? 0) === 0) {
