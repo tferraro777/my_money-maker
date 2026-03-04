@@ -113,18 +113,20 @@ export async function POST(req: Request) {
   try {
     const signature = req.headers.get('stripe-signature');
     if (!signature) {
-      return NextResponse.json({ ok: false, error: 'Missing webhook signature config' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'Missing Stripe-Signature header' },
+        { status: 400 }
+      );
     }
 
-    const buf = Buffer.from(await req.arrayBuffer()); // raw bytes, unmodified
+    const buf = Buffer.from(await req.arrayBuffer()); // raw body
+    const event = stripe.webhooks.constructEvent(
+      buf,
+      signature,
+      requireStripeWebhookSecret()
+    );
 
-    const event = stripe.webhooks.constructEvent(buf, signature, requireStripeWebhookSecret());
-    const secret = requireStripeWebhookSecret();
-    console.log('[stripe:webhook] secret_sha256', crypto.createHash('sha256').update(secret).digest('hex'));
-    console.log('[stripe:webhook] sig_prefix', signature.slice(0, 20));
-    const event = stripe.webhooks.constructEvent(buf, signature, secret);    
     eventIdForFailureLog = event.id;
-
     const inserted = await db.query(
       `INSERT INTO stripe_webhook_events (
          stripe_event_id, event_type, livemode, payload, processing_status
