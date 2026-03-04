@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { requireStripeKey, requireStripeWebhookSecret } from '@/lib/env';
-import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 
-const stripe = new Stripe(requireStripeKey());
+const stripe = new Stripe(requireStripeKey(), {
+  apiVersion: '2026-02-25.clover'
+});
 
 type AppSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'incomplete';
 
@@ -14,8 +15,10 @@ function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const legacy = (invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }).subscription;
   if (typeof legacy === 'string') return legacy;
 
-  const nested = (invoice as Stripe.Invoice & { parent?: { subscription_details?: { subscription?: string | null } } })
-    .parent?.subscription_details?.subscription;
+  const nested = (
+    invoice as Stripe.Invoice & { parent?: { subscription_details?: { subscription?: string | null } } }
+  ).parent?.subscription_details?.subscription;
+
   return nested ?? null;
 }
 
@@ -64,10 +67,13 @@ async function upsertSubscriptionFromStripe(sub: Stripe.Subscription): Promise<v
   }
 
   const normalizedStatus = mapSubscriptionStatus(sub.status);
-  const periodEnd = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end;
+  const periodEnd = (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end ?? 0;
 
   await db.query(
-    `INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id, status, current_period_end, canceled_at)
+    `INSERT INTO subscriptions (
+       user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id,
+       status, current_period_end, canceled_at
+     )
      VALUES ($1, $2, $3, $4, $5, to_timestamp($6), $7)
      ON CONFLICT (user_id)
      DO UPDATE SET
@@ -84,7 +90,7 @@ async function upsertSubscriptionFromStripe(sub: Stripe.Subscription): Promise<v
       sub.id,
       sub.items.data[0]?.price.id ?? null,
       normalizedStatus,
-      periodEnd ?? 0,
+      periodEnd,
       normalizedStatus === 'canceled' ? new Date().toISOString() : null
     ]
   );
@@ -110,32 +116,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 
 export async function POST(req: Request) {
   let eventIdForFailureLog: string | null = null;
+
   try {
     const signature = req.headers.get('stripe-signature');
     if (!signature) {
-      return NextResponse.json(
-        { ok: false, error: 'Missing Stripe-Signature header' },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: 'Missing Stripe-Signature header' }, { status: 400 });
     }
 
-    const buf = Buffer.from(await req.arrayBuffer()); // raw body
-    const event = stripe.webhooks.constructEvent(
-      buf,
-      signature,
-      requireStripeWebhookSecret()
-    );
+    // IMPORTANT: raw body must be unmodified for Stripe signature verification.
+    const buf = Buffer.from(await req.arrayBuffer());
+    const secret = requireStripeWebhookSecret();
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(buf, signature, secret);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid Stripe signature';
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    }
 
     eventIdForFailureLog = event.id;
+
+    // Store full payload (as JSON string) for idempotency + auditing.
+    const payloadString = buf.toString('utf8');
+
     const inserted = await db.query(
       `INSERT INTO stripe_webhook_events (
          stripe_event_id, event_type, livemode, payload, processing_status
        ) VALUES ($1, $2, $3, $4::jsonb, 'processed')
        ON CONFLICT (stripe_event_id) DO NOTHING
        RETURNING id`,
-      [event.id, event.type, event.livemode, buf.toString('utf8')]
+      [event.id, event.type, event.livemode, payloadString]
     );
 
+    // Duplicate delivery (Stripe retry) — already processed.
     if ((inserted.rowCount ?? 0) === 0) {
       return NextResponse.json({ ok: true, duplicate: true });
     }
@@ -143,11 +157,9 @@ export async function POST(req: Request) {
     if (event.type === 'checkout.session.completed') {
       await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
     } else if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
-      const sub = event.data.object as Stripe.Subscription;
-      await upsertSubscriptionFromStripe(sub);
+      await upsertSubscriptionFromStripe(event.data.object as Stripe.Subscription);
     } else if (event.type === 'customer.subscription.deleted') {
-      const sub = event.data.object as Stripe.Subscription;
-      await upsertSubscriptionFromStripe(sub);
+      await upsertSubscriptionFromStripe(event.data.object as Stripe.Subscription);
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = invoiceSubscriptionId(invoice);
@@ -185,17 +197,18 @@ export async function POST(req: Request) {
     console.error('[stripe:webhook] Processing failed', { error: message, eventId: eventIdForFailureLog });
 
     if (eventIdForFailureLog) {
-      await db.query(
-        `UPDATE stripe_webhook_events
-         SET processing_status = 'failed', error_message = $2
-         WHERE stripe_event_id = $1`,
-        [eventIdForFailureLog, message.slice(0, 2000)]
-      );
+      try {
+        await db.query(
+          `UPDATE stripe_webhook_events
+           SET processing_status = 'failed', error_message = $2
+           WHERE stripe_event_id = $1`,
+          [eventIdForFailureLog, String(message).slice(0, 2000)]
+        );
+      } catch {
+        // ignore secondary failure
+      }
     }
 
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
