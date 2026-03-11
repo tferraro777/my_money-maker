@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_events (
   event_type TEXT NOT NULL,
   livemode BOOLEAN NOT NULL DEFAULT FALSE,
   payload JSONB NOT NULL,
-  processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  processing_status TEXT NOT NULL DEFAULT 'processed' CHECK (processing_status IN ('processed', 'ignored', 'failed')),
+  processed_at TIMESTAMPTZ DEFAULT now(),
+  processing_status TEXT NOT NULL DEFAULT 'processed' CHECK (processing_status IN ('processing', 'processed', 'ignored', 'failed')),
   error_message TEXT
 );
 
