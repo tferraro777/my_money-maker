@@ -5,9 +5,7 @@ import { requireStripeKey, requireStripeWebhookSecret } from '@/lib/env';
 
 export const runtime = 'nodejs';
 
-const stripe = new Stripe(requireStripeKey(), {
-  apiVersion: '2026-02-25.clover'
-});
+const stripe = new Stripe(requireStripeKey());
 
 type AppSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'incomplete';
 
