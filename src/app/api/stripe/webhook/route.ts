@@ -114,6 +114,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 
 export async function POST(req: Request) {
   let eventIdForFailureLog: string | null = null;
+  let webhookEventRowId: string | null = null;
 
   try {
     const signature = req.headers.get('stripe-signature');
@@ -140,15 +141,33 @@ export async function POST(req: Request) {
 
     const inserted = await db.query(
       `INSERT INTO stripe_webhook_events (
-         stripe_event_id, event_type, livemode, payload, processing_status
-       ) VALUES ($1, $2, $3, $4::jsonb, 'processed')
-       ON CONFLICT (stripe_event_id) DO NOTHING
-       RETURNING id`,
+         stripe_event_id, event_type, livemode, payload, processing_status, error_message, processed_at
+       ) VALUES ($1, $2, $3, $4::jsonb, 'processing', NULL, NULL)
+       ON CONFLICT (stripe_event_id)
+       DO UPDATE SET
+         payload = EXCLUDED.payload,
+         event_type = EXCLUDED.event_type,
+         livemode = EXCLUDED.livemode,
+         processing_status = CASE
+           WHEN stripe_webhook_events.processing_status = 'failed' THEN 'processing'
+           ELSE stripe_webhook_events.processing_status
+         END,
+         error_message = CASE
+           WHEN stripe_webhook_events.processing_status = 'failed' THEN NULL
+           ELSE stripe_webhook_events.error_message
+         END,
+         processed_at = CASE
+           WHEN stripe_webhook_events.processing_status = 'failed' THEN NULL
+           ELSE stripe_webhook_events.processed_at
+         END
+       RETURNING id, processing_status`,
       [event.id, event.type, event.livemode, payloadString]
     );
 
-    // Duplicate delivery (Stripe retry) — already processed.
-    if ((inserted.rowCount ?? 0) === 0) {
+    webhookEventRowId = String(inserted.rows[0]?.id ?? '');
+
+    // Duplicate delivery of an already-processed event should stay a no-op.
+    if (inserted.rows[0]?.processing_status !== 'processing') {
       return NextResponse.json({ ok: true, duplicate: true });
     }
 
@@ -183,24 +202,37 @@ export async function POST(req: Request) {
     } else {
       await db.query(
         `UPDATE stripe_webhook_events
-         SET processing_status = 'ignored'
-         WHERE stripe_event_id = $1`,
-        [event.id]
+         SET processing_status = 'ignored',
+             processed_at = now(),
+             error_message = NULL
+         WHERE id = $1`,
+        [webhookEventRowId]
       );
     }
+
+    await db.query(
+      `UPDATE stripe_webhook_events
+       SET processing_status = 'processed',
+           processed_at = now(),
+           error_message = NULL
+       WHERE id = $1`,
+      [webhookEventRowId]
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook failed';
     console.error('[stripe:webhook] Processing failed', { error: message, eventId: eventIdForFailureLog });
 
-    if (eventIdForFailureLog) {
+    if (webhookEventRowId) {
       try {
         await db.query(
           `UPDATE stripe_webhook_events
-           SET processing_status = 'failed', error_message = $2
-           WHERE stripe_event_id = $1`,
-          [eventIdForFailureLog, String(message).slice(0, 2000)]
+           SET processing_status = 'failed',
+               error_message = $2,
+               processed_at = NULL
+           WHERE id = $1`,
+          [webhookEventRowId, String(message).slice(0, 2000)]
         );
       } catch {
         // ignore secondary failure
